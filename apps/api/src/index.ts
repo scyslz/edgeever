@@ -193,8 +193,8 @@ const PASSWORD_SALT_BYTES = 16;
 const SESSION_TOKEN_BYTES = 32;
 const DEFAULT_SESSION_TTL_DAYS = 30;
 const DEFAULT_R2_BUCKET_NAME = "edgeever-resources";
-const MAX_IMAGE_UPLOAD_BYTES = 50 * 1024 * 1024;
-const MAX_ATTACHMENT_UPLOAD_BYTES = 50 * 1024 * 1024;
+const MAX_IMAGE_UPLOAD_BYTES = 100 * 1024 * 1024;
+const MAX_ATTACHMENT_UPLOAD_BYTES = 100 * 1024 * 1024;
 const REVISION_SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
 const API_TOKEN_BYTES = 32;
 const API_TOKEN_PREFIX = "eev";
@@ -1856,7 +1856,7 @@ const callMcpTool = async (
 
       const mimeType = getRequiredString(args.mimeType, "mimeType");
       const filename = getOptionalString(args.filename) ?? `image${inferImageExtension("", mimeType)}`;
-      const bytes = decodeBase64ImageData(getRequiredString(args.dataBase64, "dataBase64"));
+      const bytes = await decodeBase64ImageData(getRequiredString(args.dataBase64, "dataBase64"));
       const resource = await createImageResource(c, {
         memoId,
         filename,
@@ -2007,7 +2007,7 @@ const getRequiredStringArray = (value: unknown, name: string) => {
   return items;
 };
 
-const decodeBase64ImageData = (value: string) => {
+const decodeBase64ImageData = async (value: string) => {
   const [, dataUrlPayload] = value.match(/^data:[^;]+;base64,(.+)$/i) ?? [];
   const base64 = (dataUrlPayload ?? value).replace(/\s/g, "");
 
@@ -2016,16 +2016,13 @@ const decodeBase64ImageData = (value: string) => {
   }
 
   try {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
+    const response = await fetch("data:application/octet-stream;base64," + base64);
+    if (!response.ok) {
+      throw new Error("failed to decode base64");
     }
-
-    return bytes;
-  } catch {
-    throw new AppError("invalid_params", "dataBase64 must be valid base64 image data.", 400);
+    return new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    throw new AppError("invalid_params", "dataBase64 must be valid base64 image data: " + (error as Error).message, 400);
   }
 };
 
@@ -3518,9 +3515,14 @@ const sha256 = async (value: string) => {
 };
 
 const sha256Bytes = async (bytes: Uint8Array) => {
-  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  const digest = await crypto.subtle.digest("SHA-256", buffer);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  const digest = await crypto.subtle.digest("SHA-256", bytes.slice());
+  const hashArray = new Uint8Array(digest);
+  let hexString = "";
+  for (let i = 0; i < hashArray.length; i++) {
+    const hex = hashArray[i].toString(16);
+    hexString += hex.length === 1 ? "0" + hex : hex;
+  }
+  return hexString;
 };
 
 const inferImageExtension = (filename: string, mimeType: string) => {

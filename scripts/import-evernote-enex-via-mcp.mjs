@@ -3,10 +3,12 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, extname, join } from "node:path";
+import { basename, extname, join, relative } from "node:path";
 import { homedir } from "node:os";
 import { XMLParser } from "fast-xml-parser";
 import TurndownService from "turndown";
+import { createHash } from "node:crypto";
+import sharp from "sharp";
 
 const CONFIG_PATH = process.env.EDGEEVER_CONFIG || join(homedir(), ".edgeever", "config.json");
 const DEFAULT_URL = "http://127.0.0.1:8787";
@@ -21,10 +23,14 @@ Usage:
   bun scripts/import-evernote-enex-via-mcp.mjs --profile prod --input ./evernote-export --dry-run
 
 Options:
-  --input <path>      ENEX file or a directory containing one ENEX file per notebook.
-  --profile <name>   Read URL and token from ~/.edgeever/config.json.
-  --dry-run          Parse and print the plan without writing to EdgeEver.
-  --yes              Import all notebooks without interactive confirmations.
+  --input <path>       ENEX file or a directory containing one ENEX file per notebook.
+  --profile <name>    Read URL and token from ~/.edgeever/config.json.
+  --dry-run           Parse and print the plan without writing to EdgeEver.
+  --yes               Import all notebooks without interactive confirmations.
+  --include <names>   Comma-separated notebook/stack names to import (only these).
+  --exclude <names>   Comma-separated notebook/stack names to exclude.
+  --include-tag <tag> Only import notes containing this tag.
+  --exclude-tag <tag> Exclude notes containing this tag.
 `;
 
 if (options.help || options.h) {
@@ -48,13 +54,34 @@ try {
 
 async function main() {
   const client = dryRun ? null : await createMcpClient(options.profile);
-  const notebooks = await readEnexNotebooks(inputPath);
+  let files = await listEnexFiles(inputPath);
 
-  if (notebooks.length === 0) {
+  const includeList = options.include ? options.include.split(",").map((s) => s.trim().toLowerCase()) : null;
+  const excludeList = options.exclude ? options.exclude.split(",").map((s) => s.trim().toLowerCase()) : null;
+
+  if (includeList) {
+    files = files.filter(
+      (file) =>
+        includeList.includes(notebookNameFromFile(file.filePath).toLowerCase()) ||
+        (file.stackName && includeList.includes(file.stackName.toLowerCase()))
+    );
+  }
+
+  if (excludeList) {
+    files = files.filter(
+      (file) =>
+        !excludeList.includes(notebookNameFromFile(file.filePath).toLowerCase()) &&
+        (!file.stackName || !excludeList.includes(file.stackName.toLowerCase()))
+    );
+  }
+
+  if (files.length === 0) {
     throw new Error(`No .enex files found: ${inputPath}`);
   }
 
-  printPlan(notebooks);
+  console.log("Analyzing Evernote export files...");
+  const notebooksInfo = await getNotebooksPlanInfo(files);
+  printPlan(notebooksInfo);
 
   if (dryRun) {
     process.exit(0);
@@ -67,14 +94,67 @@ async function main() {
   let importedNotebookCount = 0;
   let importedMemoCount = 0;
 
-  for (const [index, notebook] of notebooks.entries()) {
-    console.log(`\n[${index + 1}/${notebooks.length}] Importing notebook: ${notebook.name}`);
+  for (const [index, fileInfo] of notebooksInfo.entries()) {
+    const stackPrefix = fileInfo.stackName ? `[${fileInfo.stackName}] ` : "";
+    console.log(`\n[${index + 1}/${notebooksInfo.length}] Importing notebook: ${stackPrefix}${fileInfo.name}`);
+
+    // Parse the notes for this notebook only (releasing memory afterwards)
+    let notes = await parseEnex(fileInfo.filePath);
+
+    const excludeTag = options["exclude-tag"] ? options["exclude-tag"].toLowerCase() : null;
+    const includeTag = options["include-tag"] ? options["include-tag"].toLowerCase() : null;
+
+    if (excludeTag) {
+      notes = notes.filter((note) => !note.tags.map((t) => t.toLowerCase()).includes(excludeTag));
+    }
+
+    if (includeTag) {
+      notes = notes.filter((note) => note.tags.map((t) => t.toLowerCase()).includes(includeTag));
+    }
+
     const before = await mcpCall(client, "list_notebooks", {});
-    const targetNotebook = await findOrCreateNotebook(client, before.notebooks || [], notebook.name, index);
+
+    let parentId = null;
+    if (fileInfo.stackName) {
+      const parentNotebook = await findOrCreateNotebook(client, before.notebooks || [], fileInfo.stackName, index, null);
+      parentId = parentNotebook.id;
+    }
+
+    const targetNotebook = await findOrCreateNotebook(client, before.notebooks || [], fileInfo.name, index, parentId);
     const beforeMemoCount = Number(targetNotebook.memoCount || 0);
+
+    if (beforeMemoCount >= notes.length) {
+      console.log(`  Notebook "${stackPrefix}${fileInfo.name}" already fully imported (${beforeMemoCount}/${notes.length} notes). Skipping.`);
+      importedNotebookCount += 1;
+      continue;
+    }
+
     const createdMemoIds = [];
 
-    for (const [memoIndex, note] of notebook.notes.entries()) {
+    // Fetch existing memos in this notebook to support resume/idempotency
+    let existingMemos = [];
+    if (beforeMemoCount > 0 && client) {
+      try {
+        const searchResult = await mcpCall(client, "search_memos", {
+          notebookId: targetNotebook.id,
+          limit: 50,
+        });
+        existingMemos = searchResult.memos || [];
+      } catch (err) {
+        console.warn(`  [Warning] Failed to list existing memos for idempotency: ${err.message}`);
+      }
+    }
+
+    await mapLimit(notes, 5, async (note, memoIndex) => {
+      // Check if note already exists
+      const isDuplicate = existingMemos.some(
+        (m) => m.title === note.title && m.createdAt === note.createdAt && m.updatedAt === note.updatedAt
+      );
+      if (isDuplicate) {
+        console.log(`  ${memoIndex + 1}/${notes.length} Skipped (already imported): ${note.title || "Untitled"}`);
+        return;
+      }
+
       const result = await mcpCall(client, "create_memo", {
         notebookId: targetNotebook.id,
         title: note.title,
@@ -85,9 +165,51 @@ async function main() {
       });
 
       assertImportedMemoTimestamps(result.memo, note);
+
+      // Handle resources (images / attachments) in parallel!
+      let updatedMarkdown = note.markdown;
+      let hasUploadedResources = false;
+
+      if (note.resources && note.resources.length > 0) {
+        const uploadPromises = note.resources.map(async (res) => {
+          try {
+            const processedRes = await compressImageLocal(res);
+            console.log(`    Uploading resource: ${processedRes.filename} (${processedRes.mimeType})`);
+            const resource = await uploadResource(client, result.memo.id, processedRes);
+            return { md5: res.md5, url: resource.url };
+          } catch (err) {
+            console.warn(`    [Warning] Failed to upload resource ${res.filename}: ${err.message}`);
+            return null;
+          }
+        });
+
+        const uploaded = (await Promise.all(uploadPromises)).filter(Boolean);
+        for (const item of uploaded) {
+          const placeholder = `evernote-resource:${item.md5}`;
+          if (updatedMarkdown.includes(placeholder)) {
+            updatedMarkdown = updatedMarkdown.replaceAll(placeholder, item.url);
+            hasUploadedResources = true;
+          }
+        }
+      }
+
+      // Update markdown if placeholders were replaced
+      if (hasUploadedResources) {
+        try {
+          await mcpCall(client, "update_memo", {
+            memoId: result.memo.id,
+            contentMarkdown: updatedMarkdown,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt,
+          });
+        } catch (err) {
+          console.warn(`    [Warning] Failed to update memo content with resource URLs: ${err.message}`);
+        }
+      }
+
       createdMemoIds.push(result.memo.id);
-      console.log(`  ${memoIndex + 1}/${notebook.notes.length} ${note.title || "Untitled"}`);
-    }
+      console.log(`  ${memoIndex + 1}/${notes.length} ${note.title || "Untitled"}`);
+    });
 
     const after = await mcpCall(client, "list_notebooks", {});
     const verifiedNotebook = (after.notebooks || []).find((item) => item.id === targetNotebook.id);
@@ -97,7 +219,7 @@ async function main() {
     importedNotebookCount += 1;
     importedMemoCount += createdMemoIds.length;
 
-    console.log(`\nNotebook imported: ${notebook.name}`);
+    console.log(`\nNotebook imported: ${fileInfo.name}`);
     console.log(`  Created memos: ${createdMemoIds.length}`);
     console.log(`  Notebook memo count before: ${beforeMemoCount}`);
     console.log(`  Notebook memo count after:  ${afterMemoCount}`);
@@ -106,7 +228,7 @@ async function main() {
       console.log(`  Warning: memo count delta is ${delta}, expected ${createdMemoIds.length}. Check for concurrent edits or retries.`);
     }
 
-    if (!assumeYes && index < notebooks.length - 1) {
+    if (!assumeYes && index < notebooksInfo.length - 1) {
       const answer = await readline.question("Review the result in EdgeEver. Continue with the next notebook? Type yes, or anything else to stop: ");
 
       if (answer.trim().toLowerCase() !== "yes") {
@@ -119,36 +241,54 @@ async function main() {
   console.log(`\nDone. Imported notebooks: ${importedNotebookCount}; imported memos: ${importedMemoCount}.`);
 }
 
-async function readEnexNotebooks(path) {
-  const files = await listEnexFiles(path);
-  const notebooks = [];
+async function getNotebooksPlanInfo(files) {
+  const info = [];
+  for (const file of files) {
+    const xml = await readFile(file.filePath, "utf8");
+    assertReadableEvernoteXml(xml, file.filePath);
+    const noteCount = (xml.match(/<note[\s>]/ig) || []).length;
 
-  for (const filePath of files) {
-    const notes = await parseEnex(filePath);
-    notebooks.push({
-      name: notebookNameFromFile(filePath),
-      filePath,
-      notes,
+    info.push({
+      name: notebookNameFromFile(file.filePath),
+      stackName: file.stackName,
+      filePath: file.filePath,
+      noteCount,
     });
   }
-
-  return notebooks;
+  return info;
 }
 
 async function listEnexFiles(path) {
   if (path.toLowerCase().endsWith(".enex")) {
-    return [path];
+    return [{ filePath: path, stackName: null }];
   }
 
   if ((await stat(path)).isFile()) {
     throw new Error(`${path} is not an .enex file.`);
   }
 
-  const entries = await readdir(path, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile() && isSupportedExportFile(entry.name))
-    .map((entry) => join(path, entry.name))
-    .sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
+  const files = await scanEnexFiles(path, path);
+  return files.sort((a, b) => a.filePath.localeCompare(b.filePath, "zh-Hans-CN"));
+}
+
+async function scanEnexFiles(dir, baseDir) {
+  const entries = await readdir(dir, { withFileTypes: true });
+  let files = [];
+
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files = files.concat(await scanEnexFiles(fullPath, baseDir));
+    } else if (entry.isFile() && isSupportedExportFile(entry.name)) {
+      const relDir = relative(baseDir, dir);
+      files.push({
+        filePath: fullPath,
+        stackName: relDir ? basename(relDir) : null,
+      });
+    }
+  }
+
+  return files;
 }
 
 async function parseEnex(filePath) {
@@ -160,7 +300,10 @@ async function parseEnex(filePath) {
     parseTagValue: false,
     trimValues: false,
     cdataPropName: "__cdata",
-    isArray: (_, jpath) => jpath === "en-export.note" || jpath === "en-export.note.tag",
+    isArray: (_, jpath) =>
+      jpath === "en-export.note" ||
+      jpath === "en-export.note.tag" ||
+      jpath === "en-export.note.resource",
   });
   const parsed = parser.parse(xml);
   const notes = parsed?.["en-export"]?.note || [];
@@ -198,12 +341,41 @@ function normalizeNote(note, index) {
     throw new Error(`Note "${title}" is missing a valid Evernote created/updated timestamp.`);
   }
 
+  let markdown = enexContentToMarkdown(content);
+  const MAX_MARKDOWN_LENGTH = 400000; // Safe limit to prevent exceeding D1 1MB SQLITE_TOOBIG limit
+  if (markdown.length > MAX_MARKDOWN_LENGTH) {
+    markdown = markdown.slice(0, MAX_MARKDOWN_LENGTH) + "\n\n*(Note truncated during migration due to Cloudflare D1 1MB database limit)*";
+    console.warn(`\n  [Warning] Note "${title}" truncated to ${MAX_MARKDOWN_LENGTH} chars (exceeded D1 limits).`);
+  }
+
+  const resources = [];
+  if (note.resource) {
+    const rawResources = Array.isArray(note.resource) ? note.resource : [note.resource];
+    for (const res of rawResources) {
+      const mimeType = getText(res.mime)?.trim() || "application/octet-stream";
+      const dataBase64 = getText(res.data)?.replace(/\s+/g, "") || "";
+      if (!dataBase64) continue;
+
+      const attrs = res["resource-attributes"];
+      const filename = getText(attrs?.["file-name"])?.trim() || `file_${resources.length}`;
+      const md5 = createHash("md5").update(Buffer.from(dataBase64, "base64")).digest("hex");
+
+      resources.push({
+        dataBase64,
+        mimeType,
+        filename,
+        md5,
+      });
+    }
+  }
+
   return {
     title: title.slice(0, 160),
-    markdown: enexContentToMarkdown(content),
+    markdown,
     tags,
     createdAt,
     updatedAt,
+    resources,
   };
 }
 
@@ -256,8 +428,8 @@ function enexContentToMarkdown(content) {
     .trim();
 }
 
-async function findOrCreateNotebook(client, notebooks, name, index) {
-  const existing = notebooks.find((notebook) => notebook.parentId === null && notebook.name === name);
+async function findOrCreateNotebook(client, notebooks, name, index, parentId = null) {
+  const existing = notebooks.find((notebook) => notebook.parentId === parentId && notebook.name === name);
 
   if (existing) {
     console.log(`Using existing notebook: ${name}`);
@@ -266,7 +438,7 @@ async function findOrCreateNotebook(client, notebooks, name, index) {
 
   const result = await mcpCall(client, "create_notebook", {
     name: name.slice(0, 80),
-    parentId: null,
+    parentId,
     sortOrder: 1000 + index,
   });
 
@@ -287,31 +459,43 @@ async function createMcpClient(profileName) {
   return { baseUrl, token, nextId: 1 };
 }
 
-async function mcpCall(client, toolName, args) {
+async function mcpCall(client, toolName, args, retries = 5, delay = 1000) {
   const id = client.nextId++;
-  const response = await fetch(`${client.baseUrl}/mcp`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${client.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id,
-      method: "tools/call",
-      params: {
-        name: toolName,
-        arguments: args,
-      },
-    }),
-  });
-  const body = await response.json().catch(() => null);
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(`${client.baseUrl}/mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${client.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          method: "tools/call",
+          params: {
+            name: toolName,
+            arguments: args,
+          },
+        }),
+      });
 
-  if (!response.ok || body?.error) {
-    throw new Error(body?.error?.message || `${response.status} ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok || body?.error) {
+        throw new Error(body?.error?.message || `${response.status} ${response.statusText}`);
+      }
+
+      return parseMcpToolResult(body.result);
+    } catch (error) {
+      if (attempt === retries) {
+        throw error;
+      }
+      console.warn(`\n  [MCP Warning] Attempt ${attempt} failed: ${error.message}. Retrying in ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay *= 2; // Exponential backoff
+    }
   }
-
-  return parseMcpToolResult(body.result);
 }
 
 function parseMcpToolResult(result) {
@@ -322,6 +506,95 @@ function parseMcpToolResult(result) {
   }
 
   return JSON.parse(text);
+}
+
+async function compressImageLocal(res) {
+  if (!res.mimeType.startsWith("image/") || res.mimeType === "image/gif") {
+    return res;
+  }
+
+  try {
+    const inputBuffer = Buffer.from(res.dataBase64, "base64");
+    const pipeline = sharp(inputBuffer);
+    const metadata = await pipeline.metadata();
+
+    let needsResize = false;
+    const maxEdge = 2560;
+    let width = metadata.width;
+    let height = metadata.height;
+
+    if (width && height) {
+      const currentMax = Math.max(width, height);
+      if (currentMax > maxEdge) {
+        needsResize = true;
+        const scale = maxEdge / currentMax;
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+    }
+
+    if (needsResize) {
+      pipeline.resize(width, height, { fit: "inside" });
+    }
+
+    const outputBuffer = await pipeline.webp({ quality: 82 }).toBuffer();
+
+    if (outputBuffer.byteLength < inputBuffer.byteLength) {
+      const compressedBase64 = outputBuffer.toString("base64");
+      const origExt = extname(res.filename);
+      const newFilename = origExt
+        ? res.filename.slice(0, -origExt.length) + ".webp"
+        : res.filename + ".webp";
+
+      console.log(`    [Local Compress] ${res.filename} (${(inputBuffer.byteLength / 1024).toFixed(1)}KB) -> ${newFilename} (${(outputBuffer.byteLength / 1024).toFixed(1)}KB)`);
+
+      return {
+        ...res,
+        dataBase64: compressedBase64,
+        mimeType: "image/webp",
+        filename: newFilename,
+      };
+    }
+  } catch (err) {
+    console.warn(`    [Local Compress Warning] Failed to compress image ${res.filename}: ${err.message}`);
+  }
+
+  return res;
+}
+
+async function uploadResource(client, memoId, res, retries = 5, delay = 1000) {
+  const formData = new FormData();
+  const fileBlob = new Blob([Buffer.from(res.dataBase64, "base64")], { type: res.mimeType });
+  formData.append("file", fileBlob, res.filename);
+
+  const url = `${client.baseUrl}/api/v1/memos/${memoId}/resources`;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${client.token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const body = await response.json();
+      return body.resource;
+    } catch (error) {
+      if (attempt === retries) {
+        throw error;
+      }
+      console.warn(`\n  [Upload Warning] Attempt ${attempt} failed to upload ${res.filename}: ${error.message}. Retrying in ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay *= 2; // Exponential backoff
+    }
+  }
 }
 
 async function readConfig() {
@@ -342,15 +615,16 @@ async function confirmOrExit(question) {
   }
 }
 
-function printPlan(notebooks) {
-  const total = notebooks.reduce((sum, notebook) => sum + notebook.notes.length, 0);
+function printPlan(notebooksInfo) {
+  const total = notebooksInfo.reduce((sum, item) => sum + item.noteCount, 0);
 
   console.log("Evernote import plan:");
-  console.log(`  Notebooks: ${notebooks.length}`);
+  console.log(`  Notebooks: ${notebooksInfo.length}`);
   console.log(`  Notes:     ${total}`);
 
-  for (const notebook of notebooks) {
-    console.log(`  - ${notebook.name}: ${notebook.notes.length} notes (${notebook.filePath})`);
+  for (const item of notebooksInfo) {
+    const stackPrefix = item.stackName ? `[${item.stackName}] ` : "";
+    console.log(`  - ${stackPrefix}${item.name}: ${item.noteCount} notes (${item.filePath})`);
   }
 }
 
@@ -417,4 +691,21 @@ function requireValue(value, name) {
   }
 
   return value;
+}
+
+async function mapLimit(array, limit, fn) {
+  const results = [];
+  const executing = new Set();
+  for (let i = 0; i < array.length; i++) {
+    const item = array[i];
+    const p = Promise.resolve().then(() => fn(item, i));
+    results.push(p);
+    executing.add(p);
+    const clean = () => executing.delete(p);
+    p.then(clean, clean);
+    if (executing.size >= limit) {
+      await Promise.race(executing);
+    }
+  }
+  return Promise.all(results);
 }

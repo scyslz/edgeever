@@ -111,7 +111,7 @@ const getStepIcon = (index: string): ReactNode => {
     return <Download className="h-4 w-4" />;
   }
 
-  if (index === "2") {
+  if (index === "2" || index === "3" || index === "4") {
     return <UploadCloud className="h-4 w-4" />;
   }
 
