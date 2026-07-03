@@ -526,6 +526,7 @@ export const WorkspaceApp = ({
   const [selectedMemoId, setSelectedMemoId] = useState<string | null>(null);
   const [createdMemoEditId, setCreatedMemoEditId] = useState<string | null>(null);
   const [createdMemoSelectionGuardId, setCreatedMemoSelectionGuardId] = useState<string | null>(null);
+  const [isOpeningCreatedMemo, setIsOpeningCreatedMemo] = useState(false);
   const [selectedMemoIds, setSelectedMemoIds] = useState<Set<string>>(new Set());
   const [memoSelectionMode, setMemoSelectionMode] = useState(false);
   const [selectionMoveTargetNotebookId, setSelectionMoveTargetNotebookId] = useState("");
@@ -977,6 +978,10 @@ export const WorkspaceApp = ({
     selectedMemoIndex >= 0 && selectedMemoIndex < memos.length - 1 ? memos[selectedMemoIndex + 1]?.id : null;
 
   useEffect(() => {
+    if (isOpeningCreatedMemo) {
+      return;
+    }
+
     const selectedMemoInList = selectedMemoId ? memos.some((memo) => memo.id === selectedMemoId) : false;
     const createdMemoStillMissingFromList = Boolean(
       selectedMemoId &&
@@ -1001,7 +1006,7 @@ export const WorkspaceApp = ({
     if (!selectedMemoId || !selectedMemoInList) {
       setSelectedMemoId(memos[0].id);
     }
-  }, [createdMemoSelectionGuardId, memos, selectedMemoId]);
+  }, [createdMemoSelectionGuardId, isOpeningCreatedMemo, memos, selectedMemoId]);
 
   const memoQuery = useQuery({
     queryKey: selectedMemoId ? memoDetailQueryKey(selectedMemoId, memoView) : ["memo", selectedMemoId, memoView],
@@ -1049,6 +1054,7 @@ export const WorkspaceApp = ({
       const targetNotebookId =
         selectedNotebookId && selectedNotebookId !== data.memo.notebookId ? data.memo.notebookId : selectedNotebookId;
 
+      setIsOpeningCreatedMemo(false);
       setMemoView("notebook");
       setSearch("");
       if (targetNotebookId !== selectedNotebookId) {
@@ -1065,6 +1071,10 @@ export const WorkspaceApp = ({
       setCreatedMemoSelectionGuardId(data.memo.id);
       setSelectedMemoId(data.memo.id);
       setActivePane("editor");
+    },
+    onError: () => {
+      setIsOpeningCreatedMemo(false);
+      setActivePane("memos");
     },
   });
 
@@ -1273,7 +1283,16 @@ export const WorkspaceApp = ({
     }
 
     setTemplatesOpen(false);
+    navigateWorkspaceHome();
+    setIsOpeningCreatedMemo(true);
+    setMemoView("notebook");
+    setSearch("");
+    setRightView("editor");
     setMobileBottomNavActive("home");
+    setCreatedMemoEditId(null);
+    setCreatedMemoSelectionGuardId(null);
+    setSelectedMemoId(null);
+    setActivePane("editor");
     createMemoMutation.mutate({
       notebookId: defaultMemoNotebookId,
       title: template?.title ?? DEFAULT_MEMO_TITLE,
@@ -1528,6 +1547,7 @@ export const WorkspaceApp = ({
     setSelectedNotebookId(notebookId);
     setMobileBottomNavActive("home");
     clearMemoSelection();
+    setIsOpeningCreatedMemo(false);
     setCreatedMemoEditId(null);
     setCreatedMemoSelectionGuardId(null);
     setMobileNotebookPickerOpen(false);
@@ -1540,6 +1560,7 @@ export const WorkspaceApp = ({
     setSelectedNotebookId(null);
     setMobileBottomNavActive("home");
     clearMemoSelection();
+    setIsOpeningCreatedMemo(false);
     setCreatedMemoEditId(null);
     setCreatedMemoSelectionGuardId(null);
     setMobileNotebookPickerOpen(false);
@@ -1555,6 +1576,7 @@ export const WorkspaceApp = ({
     setSelectedNotebookId(null);
     setSearch("");
     clearMemoSelection();
+    setIsOpeningCreatedMemo(false);
     setCreatedMemoEditId(null);
     setCreatedMemoSelectionGuardId(null);
     setActivePane("memos");
@@ -1711,6 +1733,7 @@ export const WorkspaceApp = ({
     }
 
     if (activePane === "editor" || activePane === "notebooks") {
+      setIsOpeningCreatedMemo(false);
       setActivePane("memos");
       return true;
     }
@@ -2102,6 +2125,7 @@ export const WorkspaceApp = ({
                 setSelectedNotebookId(null);
                 setMobileBottomNavActive("home");
                 clearMemoSelection();
+                setIsOpeningCreatedMemo(false);
                 setCreatedMemoEditId(null);
                 setCreatedMemoSelectionGuardId(null);
                 setSelectedMemoId(null);
@@ -2110,6 +2134,7 @@ export const WorkspaceApp = ({
               onOpenMemo={(memoId) => {
                 navigateWorkspaceHome();
                 setRightView("editor");
+                setIsOpeningCreatedMemo(false);
                 setCreatedMemoEditId(null);
                 setCreatedMemoSelectionGuardId(null);
                 setSelectedMemoId(memoId);
@@ -2191,16 +2216,20 @@ export const WorkspaceApp = ({
                     mobileDefaultEditMemoId={createdMemoEditId}
                     isTrashView={memoView === "trash"}
                     notebooks={notebooks}
-                    isLoading={memoQuery.isLoading}
+                    isLoading={memoQuery.isLoading || isOpeningCreatedMemo}
                     searchFocusToken={noteSearchFocusToken}
                     replaceFocusToken={noteReplaceFocusToken}
                     imageCompressionEnabled={imageCompressionEnabled}
                     selectionActionBar={memoSelectionActionBar}
                     hasNextMemo={Boolean(nextMemoId)}
                     hasPreviousMemo={Boolean(previousMemoId)}
-                    onBackToList={() => setActivePane("memos")}
+                    onBackToList={() => {
+                      setIsOpeningCreatedMemo(false);
+                      setActivePane("memos");
+                    }}
                     onOpenNextMemo={() => {
                       if (nextMemoId) {
+                        setIsOpeningCreatedMemo(false);
                         setCreatedMemoEditId(null);
                         setCreatedMemoSelectionGuardId(null);
                         setSelectedMemoId(nextMemoId);
@@ -2208,6 +2237,7 @@ export const WorkspaceApp = ({
                     }}
                     onOpenPreviousMemo={() => {
                       if (previousMemoId) {
+                        setIsOpeningCreatedMemo(false);
                         setCreatedMemoEditId(null);
                         setCreatedMemoSelectionGuardId(null);
                         setSelectedMemoId(previousMemoId);
