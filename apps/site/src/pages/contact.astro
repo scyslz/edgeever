@@ -1,0 +1,59 @@
+---
+import Container from "@/components/container.astro";
+import Sectionhead from "@/components/sectionhead.astro";
+import Layout from "@/layouts/Layout.astro";
+import { Icon } from "astro-icon/components";
+---
+
+<Layout title="联系我们">
+  <Container>
+    <Sectionhead>
+      <Fragment slot="title">联系与社区交流</Fragment>
+      <Fragment slot="desc">Bug、功能建议和部署问题请优先沉淀到公开渠道，方便后来者复用解决方案。</Fragment>
+    </Sectionhead>
+
+    <div class="grid md:grid-cols-2 gap-12 mx-auto max-w-4xl mt-16 text-slate-700">
+      <div>
+        <h2 class="font-bold text-2xl text-gray-900">EdgeEver 开发者社区</h2>
+        <p class="text-lg leading-relaxed text-slate-500 mt-4">
+          EdgeEver 核心 README 推荐优先通过 GitHub Issues 反馈 Bug、功能建议和部署问题。这样后续用户遇到同类问题时，也能检索到完整上下文。
+        </p>
+        <div class="mt-6 space-y-4">
+          <div class="flex items-start space-x-3">
+            <Icon class="text-gray-600 w-6 h-6 shrink-0 mt-0.5" name="bx:bxl-github" />
+            <div>
+              <a href="https://github.com/msh01/edgeever/issues" target="_blank" class="font-semibold text-gray-900 hover:underline">
+                GitHub Issues (问题追踪)
+              </a>
+              <p class="text-sm text-slate-500 mt-1">适用于提交软件故障、错误报告 (Bug Reports) 或明确的功能请求。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-slate-50 p-8 rounded-lg border border-slate-100 flex flex-col justify-between">
+        <div>
+          <h2 class="font-bold text-xl text-gray-900">其他联系信息</h2>
+          <p class="text-sm text-slate-500 mt-2">
+            如果需要私下沟通，可以通过核心 README 中提供的微信联系。添加时请备注 EdgeEver。
+          </p>
+          <div class="mt-6 space-y-3">
+            <div class="flex items-center space-x-2.5">
+              <Icon class="text-gray-400 w-5 h-5" name="bx:bx-message-rounded" />
+              <span class="text-gray-600">微信：m1245207870</span>
+            </div>
+            <div class="flex items-center space-x-2.5">
+              <Icon class="text-gray-400 w-5 h-5" name="bx:bx-globe" />
+              <span class="text-gray-600">主域名：edgeever.org</span>
+            </div>
+          </div>
+        </div>
+        <div class="mt-8 pt-6 border-t border-slate-200">
+          <p class="text-xs text-slate-400 leading-normal">
+            官网内容以同级核心仓库 `edgeever` 的 README、docs 和实际实现为准。
+          </p>
+        </div>
+      </div>
+    </div>
+  </Container>
+</Layout>

@@ -1,0 +1,37 @@
+---
+import Link from "./ui/link.astro";
+import { Icon } from "astro-icon/components";
+---
+
+<div
+  class="relative bg-slate-950 p-10 md:px-20 md:py-20 mt-28 mx-auto max-w-5xl rounded-lg flex flex-col items-center text-center border border-slate-800 overflow-hidden shadow-2xl">
+  <div class="inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold text-brand bg-brand/10 border border-brand/20 rounded-full mb-6">
+    <Icon class="w-4 h-4" name="bx:bxs-zap" />
+    推荐先 Fork，再部署到自己的 Cloudflare
+  </div>
+
+  <h2 class="text-white text-4xl md:text-5xl font-bold tracking-tight leading-tight max-w-3xl">
+    从核心仓库开始，部署一个属于自己的 EdgeEver
+  </h2>
+  
+  <p class="text-slate-400 mt-6 text-lg md:text-xl max-w-2xl leading-relaxed">
+    核心项目已经提供 `deploy:setup`、`deploy:doctor` 和 `deploy` 三段式部署命令。使用 AI Agent 时，也可以把 Fork 仓库链接交给 Agent，并让它按部署协议执行。
+  </p>
+
+  <div class="flex flex-col sm:flex-row gap-4 mt-10">
+    <Link 
+      href="https://github.com/msh01/edgeever" 
+      target="_blank" 
+      style="inverted" 
+      class="flex gap-2 items-center justify-center font-semibold bg-white text-slate-900 hover:bg-slate-100 shadow-xl transition-all hover:scale-[1.02]">
+      <Icon class="text-slate-900 w-5 h-5" name="bx:bxl-github" />
+      打开 EdgeEver 仓库
+    </Link>
+    <a 
+      href="/timeline/ai-agent-deploy-cloudflare" 
+      class="flex gap-2 items-center justify-center px-6 py-3 border border-slate-700 hover:border-slate-600 rounded-lg text-slate-300 hover:text-white transition-all text-sm font-semibold hover:bg-slate-900">
+      <Icon class="text-slate-400 w-5 h-5" name="bx:bxs-bot" />
+      查看 AI 助理部署协议
+    </a>
+  </div>
+</div>

@@ -25,18 +25,29 @@ edgeever/
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── vite.config.ts
-│   └── api/
+│   ├── api/
+│   │   ├── src/
+│   │   │   ├── index.ts
+│   │   │   ├── env.ts
+│   │   │   ├── db/
+│   │   │   ├── routes/
+│   │   │   │   ├── memos.ts
+│   │   │   │   ├── notebooks.ts
+│   │   │   │   └── resources.ts
+│   │   │   └── services/
+│   │   │       ├── merge-memos.ts
+│   │   │       └── resource-store.ts
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   └── site/
+│       ├── public/
 │       ├── src/
-│       │   ├── index.ts
-│       │   ├── env.ts
-│       │   ├── db/
-│       │   ├── routes/
-│       │   │   ├── memos.ts
-│       │   │   ├── notebooks.ts
-│       │   │   └── resources.ts
-│       │   └── services/
-│       │       ├── merge-memos.ts
-│       │       └── resource-store.ts
+│       │   ├── components/
+│       │   ├── content/
+│       │   ├── layouts/
+│       │   ├── pages/
+│       │   └── styles/
+│       ├── astro.config.mjs
 │       ├── package.json
 │       └── tsconfig.json
 ├── packages/
@@ -67,6 +78,9 @@ EdgeEver should deploy as one Cloudflare Worker:
 - Unknown static routes fall back to `index.html` for SPA and PWA navigation.
 - `env.DB` is the D1 binding.
 - `env.RESOURCES` is the R2 bucket binding for images and attachments.
+
+The official website in `apps/site` is an Astro static site. It is built and
+deployed independently from the product Worker, typically to Cloudflare Pages.
 
 ## Frontend Boundaries
 

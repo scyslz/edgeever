@@ -1,0 +1,102 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import Container from "@/components/container.astro";
+import Sectionhead from "@/components/sectionhead.astro";
+import { Icon } from "astro-icon/components";
+---
+
+<Layout title="关于项目">
+  <Container>
+    <Sectionhead>
+      <Fragment slot="title">关于 EdgeEver</Fragment>
+      <Fragment slot="desc">一个开源、自托管、Cloudflare-native 的现代笔记工作区。</Fragment>
+    </Sectionhead>
+
+    <div class="mx-auto max-w-4xl mt-16 text-slate-700 leading-relaxed text-lg">
+      
+      <div class="bg-slate-50 border border-slate-100 p-8 rounded-lg mb-12 shadow-sm">
+        <h2 class="font-bold text-3xl text-slate-900 flex items-center gap-2 mb-4">
+          <Icon class="text-brand w-7 h-7 shrink-0" name="bx:bxs-quote-left" />
+          为什么做 EdgeEver？
+        </h2>
+        <p class="text-slate-600 text-lg leading-relaxed">
+          很多长期使用印象笔记的人，需要的只是一个可靠、开放、响应足够快的个人知识库。但随着商业笔记产品越来越臃肿、订阅和迁移成本升高，用户很难把自己的笔记数据拿回到开放格式中。
+        </p>
+        <p class="mt-4 font-semibold text-brand-text">
+          EdgeEver 想填补这个空白：保留熟悉的三栏笔记体验，同时提供开放数据、REST API、MCP 和接近零成本的自托管部署。
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-8 my-16">
+        <div class="bg-white border border-slate-100 p-8 rounded-lg glow-card hover-lift flex flex-col justify-between">
+          <div>
+            <div class="bg-brand-soft border border-brand-border/20 rounded-xl p-2 w-10 h-10 flex items-center justify-center mb-6">
+              <Icon class="text-brand-text w-5 h-5" name="bx:bxs-cloud" />
+            </div>
+            <h3 class="font-bold text-2xl text-slate-900 mb-3">Cloudflare-Native 架构</h3>
+            <p class="text-slate-500 text-sm leading-relaxed mb-6">
+              EdgeEver 以一个 Cloudflare Worker 承载 API 和前端静态资源，D1 保存笔记数据，R2 保存图片与附件，适合个人自托管和长期维护。
+            </p>
+            <ul class="space-y-2 text-sm text-slate-600">
+              <li class="flex items-center gap-2">
+                <Icon class="text-brand w-4 h-4 shrink-0" name="bx:bx-check-circle" />
+                D1 关系型 SQLite 数据库存储笔记
+              </li>
+              <li class="flex items-center gap-2">
+                <Icon class="text-brand w-4 h-4 shrink-0" name="bx:bx-check-circle" />
+                R2 对象存储附件与图片
+              </li>
+              <li class="flex items-center gap-2">
+                <Icon class="text-brand w-4 h-4 shrink-0" name="bx:bx-check-circle" />
+                Workers、Hono、Zod 提供 REST API
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-100 p-8 rounded-lg glow-card hover-lift flex flex-col justify-between">
+          <div>
+            <div class="bg-brand-soft border border-brand-border/20 rounded-xl p-2 w-10 h-10 flex items-center justify-center mb-6">
+              <Icon class="text-brand-text w-5 h-5" name="bx:bxs-bot" />
+            </div>
+            <h3 class="font-bold text-2xl text-slate-900 mb-3">面向 Agent 的开放接口</h3>
+            <p class="text-slate-500 text-sm leading-relaxed mb-6">
+              EdgeEver 原生提供 OpenAPI schema 和 Remote MCP endpoint。创建 API Token 后，Agent 可以在授权范围内读取、整理和维护笔记。
+            </p>
+            <ul class="space-y-2 text-sm text-slate-600">
+              <li class="flex items-center gap-2">
+                <Icon class="text-brand w-4 h-4 shrink-0" name="bx:bx-check-circle" />
+                内置 Remote MCP endpoint
+              </li>
+              <li class="flex items-center gap-2">
+                <Icon class="text-brand w-4 h-4 shrink-0" name="bx:bx-check-circle" />
+                AI Agent 可直接通过 APIs 读取、分类和整理笔记
+              </li>
+              <li class="flex items-center gap-2">
+                <Icon class="text-brand w-4 h-4 shrink-0" name="bx:bx-check-circle" />
+                设置页提供 MCP 配置复制入口
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="relative bg-slate-900 border border-slate-800 p-8 rounded-lg flex flex-col md:flex-row items-center justify-between gap-8 my-12 overflow-hidden shadow-xl">
+        <div class="relative z-10 max-w-lg">
+          <h3 class="font-bold text-white text-2xl">建议从 Fork 官方仓库开始</h3>
+          <p class="text-sm text-slate-400 mt-2 leading-relaxed">
+            核心 README 建议先 Fork 官方仓库。后续版本发布后，可以在 GitHub 上 Sync fork，再回到本地执行 `bun install`、`bun run deploy:doctor` 和 `bun run deploy` 重新部署。
+          </p>
+        </div>
+        <a 
+          href="https://github.com/msh01/edgeever" 
+          target="_blank" 
+          class="relative z-10 px-6 py-3 bg-white text-slate-900 rounded-xl text-center font-semibold hover:bg-slate-100 transition whitespace-nowrap shadow-lg hover:scale-[1.02]"
+          rel="noopener"
+        >
+          打开 GitHub
+        </a>
+      </div>
+    </div>
+  </Container>
+</Layout>

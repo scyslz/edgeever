@@ -1,0 +1,28 @@
+---
+import { getCollection } from "astro:content";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("blog");
+  return entries.map((entry) => ({
+    params: { slug: entry.slug },
+    props: { target: `/timeline/${entry.slug}` },
+  }));
+}
+
+const { target } = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content={`0; url=${target}`} />
+    <link rel="canonical" href={target} />
+    <title>跳转到产品时间轴 | EdgeEver</title>
+  </head>
+  <body>
+    <p>
+      页面已迁移到 <a href={target}>新的文档地址</a>。
+    </p>
+  </body>
+</html>

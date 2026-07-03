@@ -1,0 +1,96 @@
+---
+import Container from "@/components/container.astro";
+import Link from "@/components/ui/link.astro";
+import Dropdown from "./dropdown.astro";
+import { Astronav, MenuItems, MenuIcon } from "astro-navbar";
+
+const menuitems = [
+  {
+    title: "功能特性",
+    path: "/#features",
+  },
+  {
+    title: "部署成本",
+    path: "/pricing",
+  },
+  {
+    title: "关于项目",
+    path: "/about",
+  },
+  {
+    title: "产品时间轴",
+    path: "/timeline",
+  },
+  {
+    title: "联系我们",
+    path: "/contact",
+  },
+];
+---
+
+<Container>
+  <header class="flex flex-col lg:flex-row justify-between items-center my-5">
+    <Astronav>
+      <div class="flex w-full lg:w-auto items-center justify-between">
+        <a href="/" class="flex items-center gap-2 text-lg" aria-label="EdgeEver 首页"
+          >
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--edgeever-brand-logo-bg)]">
+            <svg class="h-6 w-6" viewBox="0 0 64 64" role="img" aria-hidden="true">
+              <rect x="14" y="10" width="36" height="44" rx="8" fill="var(--edgeever-brand-logo-mark)" />
+              <path d="M24 23h18v5H30v5h11v5H30v6h13v5H24V23Z" fill="var(--edgeever-brand-surface)" />
+              <path d="M19 16h26" stroke="var(--edgeever-brand-logo-accent)" stroke-width="3" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span>
+            <span class="font-bold text-slate-800">Edge</span><span class="text-slate-500">Ever</span>
+          </span>
+        </a>
+        <div class="block lg:hidden">
+          <MenuIcon class="w-4 h-4 text-gray-800" />
+        </div>
+      </div>
+      <MenuItems class="hidden w-full lg:w-auto mt-2 lg:flex lg:mt-0">
+        <ul class="flex flex-col lg:flex-row lg:gap-3">
+          {
+            menuitems.map((item, index) => (
+              <>
+                {item.children && (
+                  <Dropdown
+                    title={item.title}
+                    children={item.children}
+                    lastItem={index === menuitems.length - 1}
+                  />
+                )}
+
+                {!item.children && (
+                  <li>
+                    <a
+                      href={item.path}
+                      class="flex lg:px-3 py-2 items-center text-gray-600 hover:text-gray-900">
+                      <span> {item.title}</span>
+                      {item.badge && (
+                        <span class="ml-1 px-2 py-0.5 text-[10px] animate-pulse font-semibold uppercase text-white bg-indigo-600 rounded-full">
+                          New
+                        </span>
+                      )}
+                    </a>
+                  </li>
+                )}
+              </>
+            ))
+          }
+        </ul>
+        <div class="lg:hidden flex items-center mt-3 gap-4">
+        <Link href="https://demo.edgeever.org" target="_blank" style="muted" block size="md">在线演示</Link>
+          <Link href="https://github.com/msh01/edgeever" target="_blank" size="md" block>GitHub</Link>
+        </div>
+      </MenuItems>
+    </Astronav>
+    <div>
+      <div class="hidden lg:flex items-center gap-4">
+        <a href="https://demo.edgeever.org" target="_blank" class="text-gray-600 hover:text-gray-900 transition">在线演示</a>
+        <Link href="https://github.com/msh01/edgeever" target="_blank" size="md">GitHub</Link>
+      </div>
+    </div>
+  </header>
+</Container>

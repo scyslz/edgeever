@@ -1,0 +1,92 @@
+---
+// @ts-ignore
+import { Icon } from "astro-icon/components";
+
+const features = [
+  {
+    title: "经典三栏与嵌套笔记本",
+    description:
+      "保留笔记本树、笔记列表、主编辑区的工作流。支持无限级嵌套笔记本、拖拽排序与调整层级、多选移动和多选合并笔记。",
+    icon: "bx:bx-layout",
+  },
+  {
+    title: "富文本与开放内容格式",
+    description:
+      "编辑器基于 TipTap / ProseMirror。EdgeEver 同时保存结构化 content_json、给 API 和 Agent 使用的 Markdown，以及用于搜索和索引的纯文本。",
+    icon: "bx:bx-edit-alt",
+  },
+  {
+    title: "Web 端图片压缩",
+    description:
+      "网页端上传图片前可在浏览器本地压缩为 WebP，并将最长边限制在 2560px 内。REST API 和 MCP 会按客户端提供的文件内容直接入库。",
+    icon: "bx:bx-navigation",
+  },
+  {
+    title: "PWA 与离线草稿队列",
+    description:
+      "可安装到桌面或手机主屏幕。Web 端使用 Workbox 与 Dexie 支撑 PWA、离线编辑草稿和本地同步队列，适合手机随手记录。",
+    icon: "bx:bx-mobile",
+  },
+  {
+    title: "AI Agent 友好",
+    description:
+      "后端提供 REST API、OpenAPI schema 和 Remote MCP endpoint。AI Agent 可以在授权后读取、创建、整理笔记和标签。",
+    icon: "bx:bxs-bot",
+  },
+  {
+    title: "Cloudflare 自托管部署",
+    description:
+      "基于 Cloudflare Workers、D1 和 R2。按核心仓库 README 的估算，个人短笔记可达 10 万条量级，200KB 图片约可存放 5 万张。",
+    icon: "bx:bx-dollar",
+  },
+  {
+    title: "数据开放且可迁移",
+    description:
+      "笔记内容存放在基于标准 SQLite 的 D1 中，可通过 REST API、MCP 和 CLI 按需读取、迁移或导出，减少对单一商业笔记产品的依赖。",
+    icon: "bx:bxs-lock-alt",
+  },
+  {
+    title: "单用户登录与 Token",
+    description:
+      "面向个人自托管场景，支持单用户登录，密码使用 PBKDF2-SHA256 hash；可在个人中心创建 API / MCP Token 授权外部工具。",
+    icon: "bx:bx-key",
+  },
+  {
+    title: "印象笔记迁移",
+    description:
+      "提供 Evernote ENEX 导入脚本和 MCP 迁移流程。迁移指引覆盖 evernote-backup、ENEX 导出、本地依赖安装和按笔记本筛选导入。",
+    icon: "bx:bx-transfer",
+  },
+];
+---
+
+<div class="mt-16 md:mt-24">
+  <div class="max-w-3xl">
+    <div class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-brand-text bg-brand-soft border border-brand-border/40 rounded-full mb-4">
+      特性矩阵
+    </div>
+    <h2 class="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900" id="features">
+      当前 EdgeEver 已实现的能力
+    </h2>
+    <p class="text-lg mt-4 text-slate-600 leading-relaxed">
+      以下内容来自同级核心仓库的 README、部署文档、迁移指南和实际代码结构，官网展示会随核心项目同步更新。
+    </p>
+  </div>
+</div>
+
+<div class="grid sm:grid-cols-2 md:grid-cols-3 mt-16 gap-8">
+  {
+    features.map((item) => (
+      <div class="group relative flex flex-col p-6 bg-white border border-slate-100 rounded-2xl glow-card hover-lift">
+        <div class="absolute -inset-px rounded-2xl border border-transparent group-hover:border-brand/10 transition-colors pointer-events-none"></div>
+        <div class="bg-brand-soft border border-brand-border/20 rounded-xl p-2.5 w-11 h-11 shrink-0 flex items-center justify-center mb-5 transition-colors group-hover:bg-brand group-hover:text-white">
+          <Icon class="text-brand-text w-6 h-6 transition-colors group-hover:text-white" name={item.icon} />
+        </div>
+        <div>
+          <h3 class="font-semibold text-lg text-slate-800 transition-colors group-hover:text-brand-text">{item.title}</h3>
+          <p class="text-slate-500 mt-2.5 leading-relaxed text-sm">{item.description}</p>
+        </div>
+      </div>
+    ))
+  }
+</div>

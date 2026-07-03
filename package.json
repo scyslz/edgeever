@@ -13,9 +13,12 @@
     "dev:local": "concurrently -k -n api,web -c cyan,magenta \"bun run dev:api:local\" \"bun run dev:web\"",
     "dev:api:local": "bun scripts/run-wrangler.mjs dev --local --port 8787",
     "dev:web": "vite --config apps/web/vite.config.ts --host 127.0.0.1 --port 5173",
+    "dev:site": "bun run --cwd apps/site dev",
     "build": "bun run build:web",
     "build:web": "vite build --config apps/web/vite.config.ts",
+    "build:site": "bun run --cwd apps/site build",
     "preview:web": "vite preview --config apps/web/vite.config.ts --host 127.0.0.1 --port 4173",
+    "preview:site": "bun run --cwd apps/site preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:migrate:local": "bun scripts/run-wrangler.mjs d1 migrations apply DB --local",
     "db:migrate:remote": "bun scripts/run-wrangler.mjs d1 migrations apply DB --remote",
@@ -25,7 +28,8 @@
     "mcp:stdio": "bun scripts/edgeever-mcp-stdio.mjs",
     "deploy:doctor": "bun scripts/cloudflare-deploy.mjs doctor",
     "deploy:setup": "bun scripts/cloudflare-deploy.mjs setup",
-    "deploy": "bun run build && bun run db:migrate:remote && bun scripts/run-wrangler.mjs deploy"
+    "deploy": "bun run build && bun run db:migrate:remote && bun scripts/run-wrangler.mjs deploy",
+    "deploy:site": "bun run build:site && wrangler pages deploy apps/site/dist --project-name=edgeever-official"
   },
   "cloudflare": {
     "bindings": {
