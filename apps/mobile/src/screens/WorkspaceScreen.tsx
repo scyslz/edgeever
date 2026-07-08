@@ -4190,7 +4190,7 @@ const EditMemoModal = ({
   });
 
   const handleSave = () => {
-    if (!memo || updateMutation.isPending) {
+    if (!memo || updateMutation.isPending || !notebookId) {
       return;
     }
 
@@ -4231,6 +4231,32 @@ const EditMemoModal = ({
     );
   };
 
+  const requestClose = () => {
+    if (updateMutation.isPending || uploadResourceMutation.isPending) {
+      return;
+    }
+
+    if (!hasEditChanges) {
+      onClose();
+      return;
+    }
+
+    const buttons: Array<{
+      onPress?: () => void;
+      style?: "cancel" | "default" | "destructive";
+      text: string;
+    }> = [
+      { text: "继续编辑", style: "cancel" },
+      { text: "放弃修改", style: "destructive", onPress: onClose },
+    ];
+
+    if (canSaveEditMemo) {
+      buttons.push({ text: "保存", onPress: handleSave });
+    }
+
+    Alert.alert("保存更改？", "当前笔记有未保存修改。", buttons);
+  };
+
   const replaceAllMatches = () => {
     if (replaceMatches.length === 0) {
       return;
@@ -4260,11 +4286,11 @@ const EditMemoModal = ({
   };
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet" visible={Boolean(memo)}>
+    <Modal animationType="slide" onRequestClose={requestClose} presentationStyle="pageSheet" visible={Boolean(memo)}>
       <SafeAreaView style={styles.modalSafeArea}>
         <View style={styles.modalHeader}>
-          <IconButton onPress={onClose}>
-            <X color="#0f172a" size={20} />
+          <IconButton disabled={updateMutation.isPending || uploadResourceMutation.isPending} onPress={requestClose}>
+            <X color={updateMutation.isPending || uploadResourceMutation.isPending ? "#cbd5e1" : "#0f172a"} size={20} />
           </IconButton>
           <Text style={styles.modalTitle}>编辑笔记</Text>
           <IconButton disabled={!canSaveEditMemo} onPress={handleSave}>
