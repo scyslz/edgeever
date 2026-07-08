@@ -1884,6 +1884,7 @@ const CreateMemoModal = ({
   const [contentMarkdown, setContentMarkdown] = useState("");
   const [contentSelection, setContentSelection] = useState<TextSelection>({ start: 0, end: 0 });
   const [insertTextOpen, setInsertTextOpen] = useState(false);
+  const targetNotebookId = notebookId || fallbackNotebookId;
 
   useEffect(() => {
     if (visible) {
@@ -1896,8 +1897,6 @@ const CreateMemoModal = ({
       if (!client) {
         throw new Error("Client is not ready");
       }
-
-      const targetNotebookId = notebookId || fallbackNotebookId;
 
       if (!targetNotebookId) {
         throw new Error("请先创建一个笔记本");
@@ -1923,6 +1922,7 @@ const CreateMemoModal = ({
       onCreated(memo);
     },
   });
+  const canSubmitCreateMemo = Boolean(targetNotebookId) && !createMutation.isPending;
 
   const pasteClipboardText = async () => {
     const text = await Clipboard.getStringAsync();
@@ -1950,8 +1950,8 @@ const CreateMemoModal = ({
             <X color={createMutation.isPending ? "#cbd5e1" : "#0f172a"} size={20} />
           </IconButton>
           <Text style={styles.modalTitle}>新建笔记</Text>
-          <IconButton onPress={() => createMutation.mutate()}>
-            {createMutation.isPending ? <ActivityIndicator color="#0f172a" /> : <Check color="#0f172a" size={20} />}
+          <IconButton disabled={!canSubmitCreateMemo} onPress={() => createMutation.mutate()}>
+            {createMutation.isPending ? <ActivityIndicator color="#0f172a" /> : <Check color={canSubmitCreateMemo ? "#0f172a" : "#cbd5e1"} size={20} />}
           </IconButton>
         </View>
 
