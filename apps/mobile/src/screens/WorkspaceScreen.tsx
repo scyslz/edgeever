@@ -390,6 +390,9 @@ export const WorkspaceScreen = () => {
   const canToggleVisibleSelection = memos.length > 0;
   const allVisibleMemosSelected = canToggleVisibleSelection && memos.every((memo) => selectedMemoIds.has(memo.id));
   const nextSelectionPinValue = selectedMemos.some((memo) => !memo.isPinned);
+  const selectedMemoIndex = selectedMemoId ? memos.findIndex((memo) => memo.id === selectedMemoId) : -1;
+  const previousMemoId = selectedMemoIndex > 0 ? memos[selectedMemoIndex - 1]?.id : null;
+  const nextMemoId = selectedMemoIndex >= 0 && selectedMemoIndex < memos.length - 1 ? memos[selectedMemoIndex + 1]?.id : null;
 
   useEffect(() => {
     clearSelection();
@@ -877,6 +880,8 @@ export const WorkspaceScreen = () => {
         onDelete={handleDeleteMemo}
         onEdit={setEditingMemo}
         onRichEdit={setRichEditingMemo}
+        onOpenNextMemo={nextMemoId ? () => setSelectedMemoId(nextMemoId) : undefined}
+        onOpenPreviousMemo={previousMemoId ? () => setSelectedMemoId(previousMemoId) : undefined}
         onOpenResources={() => setResourcesOpen(true)}
         onOpenRevisions={setRevisionMemo}
         onRestore={(memo) => restoreMemoMutation.mutate(memo)}
@@ -3214,6 +3219,8 @@ const MemoDetailModal = ({
   onDelete,
   onEdit,
   onRichEdit,
+  onOpenNextMemo,
+  onOpenPreviousMemo,
   onOpenResources,
   onOpenRevisions,
   onRestore,
@@ -3229,6 +3236,8 @@ const MemoDetailModal = ({
   onDelete: (memo: MemoDetail) => void;
   onEdit: (memo: MemoDetail) => void;
   onRichEdit: (memo: MemoDetail) => void;
+  onOpenNextMemo?: () => void;
+  onOpenPreviousMemo?: () => void;
   onOpenResources: () => void;
   onOpenRevisions: (memo: MemoDetail) => void;
   onRestore: (memo: MemoDetail) => void;
@@ -3264,7 +3273,14 @@ const MemoDetailModal = ({
           <Text numberOfLines={1} style={styles.modalTitle}>
             {memo?.title?.trim() || DEFAULT_MEMO_TITLE}
           </Text>
-          <View style={styles.iconButtonPlaceholder} />
+          <View style={styles.modalHeaderActions}>
+            <IconButton disabled={!onOpenPreviousMemo} onPress={() => onOpenPreviousMemo?.()}>
+              <ChevronLeft color={onOpenPreviousMemo ? "#0f172a" : "#cbd5e1"} size={18} />
+            </IconButton>
+            <IconButton disabled={!onOpenNextMemo} onPress={() => onOpenNextMemo?.()}>
+              <ChevronRight color={onOpenNextMemo ? "#0f172a" : "#cbd5e1"} size={18} />
+            </IconButton>
+          </View>
         </View>
 
         {isLoading ? (
@@ -4151,8 +4167,8 @@ const SyncQueuePanel = ({
   );
 };
 
-const IconButton = ({ children, onPress }: { children: ReactNode; onPress: () => void }) => (
-  <Pressable accessibilityRole="button" onPress={onPress} style={styles.iconButton}>
+const IconButton = ({ children, disabled = false, onPress }: { children: ReactNode; disabled?: boolean; onPress: () => void }) => (
+  <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.iconButton, disabled && styles.buttonDisabled]}>
     {children}
   </Pressable>
 );
@@ -4741,6 +4757,10 @@ const styles = StyleSheet.create({
   iconButtonPlaceholder: {
     height: 38,
     width: 38,
+  },
+  modalHeaderActions: {
+    flexDirection: "row",
+    gap: 6,
   },
   tabs: {
     paddingLeft: 18,
