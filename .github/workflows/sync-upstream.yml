@@ -1,0 +1,21 @@
+name: Sync Upstream
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天凌晨2点（北京时间）
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Sync upstream
+        run: |
+          git remote add upstream https://github.com/tianma-if/edgeever.git || true
+          git fetch upstream
+          git merge upstream/main --no-edit || true
+          git push origin main
